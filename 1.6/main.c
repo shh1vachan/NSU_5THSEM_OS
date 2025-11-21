@@ -1,18 +1,25 @@
 #include <stdio.h>
-#include "mythread.h"
+#include "mythread_lib.h"
 
-void *thread_func(void *arg)
+static void *thread_function(void *arg)
 {
-    printf("Hello from mythread! arg = %s\n", (char *)arg);
+    const char *msg = (const char *)arg;
+    printf("mythread started, message: %s\n", msg);
     return NULL;
 }
 
 int main(void)
 {
     mythread_t t;
-    mythread_create(&t, thread_func, "test");
+    int status;
 
-    pthread_join(t, NULL);
+    status = mythread_create(&t, thread_function, "hello from thread");
+    if (status != MYTHREAD_SUCCESS) {
+        fprintf(stderr, "mythread_create failed\n");
+        return 1;
+    }
+
+    pthread_join(t.handle, NULL);
 
     return 0;
 }
