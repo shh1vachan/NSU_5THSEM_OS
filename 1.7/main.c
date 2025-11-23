@@ -4,14 +4,20 @@
 static void *worker1(void *arg)
 {
     (void)arg;
-    printf("uthread 1: hello!\n");
+    for (int i = 0; i < 5; ++i) {
+        printf("uthread 1: step %d\n", i);
+        scheduler();
+    }
     return NULL;
 }
 
 static void *worker2(void *arg)
 {
     const char *msg = (const char *)arg;
-    printf("uthread 2: %s\n", msg);
+    for (int i = 0; i < 5; ++i) {
+        printf("uthread 2: %s, step %d\n", msg, i);
+        scheduler();
+    }
     return NULL;
 }
 
