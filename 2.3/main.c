@@ -3,22 +3,32 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
- 
+#include <stdatomic.h>
+
 #include "list.h"
 #include "counter.h"
 #include "swapper.h"
+#include "lock.h"
 
 #define DEFAULT_SIZE 1000
 #define RUN_TIME 5
 
 int main(int argc, char **argv) {
     size_t n = DEFAULT_SIZE;
+    LockMode mode = LOCK_MODE_MUTEX;
+
     if (argc > 1) {
         size_t t = strtoul(argv[1], NULL, 10);
         if (t > 0) n = t;
     }
+    if (argc > 2) {
+        mode = parse_lock_mode(argv[2]);
+    }
 
-    srand((unsigned)time(NULL));
+    set_lock_mode(mode);
+
+    printf("list size = %zu, lock mode = %s\n", n, lock_mode_name(mode));
+    fflush(stdout);
 
     list_init_random(&global_list, n);
 
@@ -45,9 +55,15 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 3; ++i)
         pthread_join(t_sw[i], NULL);
 
-    printf("inc_passes = %ld\n", (long)atomic_load(&inc_passes));
-    printf("dec_passes = %ld\n", (long)atomic_load(&dec_passes));
-    printf("eq_passes  = %ld\n", (long)atomic_load(&eq_passes));
+    printf("passes: inc=%ld dec=%ld eq=%ld\n",
+           (long)atomic_load(&inc_passes),
+           (long)atomic_load(&dec_passes),
+           (long)atomic_load(&eq_passes));
+
+    printf("swaps:  inc=%ld dec=%ld eq=%ld\n",
+           (long)atomic_load(&swap_counts[0]),
+           (long)atomic_load(&swap_counts[1]),
+           (long)atomic_load(&swap_counts[2]));
 
     list_free(&global_list);
     return 0;
