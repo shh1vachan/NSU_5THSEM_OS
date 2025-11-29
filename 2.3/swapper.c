@@ -4,6 +4,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <sched.h>
 
 atomic_long swap_counts[3] = {0, 0, 0};
 
@@ -21,13 +22,18 @@ static int need_swap_for_eq(int l1, int l2) {
     return l1 != l2;
 }
 
+static unsigned int next_rand(unsigned int *state) {
+    *state = (*state * 1103515245u) + 12345u;
+    return *state;
+}
+
 static void do_random_swap_once(List *lst, NeedSwapFn fn, atomic_long *counter, unsigned int *seed) {
     if (lst->size < 2) return;
 
     int max_index = (int)lst->size - 1;
     if (max_index <= 0) return;
 
-    int idx = rand_r(seed) % max_index;
+    int idx = (int)(next_rand(seed) % (unsigned int)max_index);
 
     Node *prev = lst->head;
     if (!prev) return;

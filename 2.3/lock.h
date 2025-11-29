@@ -2,6 +2,7 @@
 #define LOCK_H
 
 #include <pthread.h>
+#include <stdatomic.h>
 
 typedef enum {
     LOCK_MODE_MUTEX,
@@ -13,8 +14,16 @@ typedef struct {
     LockMode mode;
     union {
         pthread_mutex_t m;
-        pthread_spinlock_t s;
-        pthread_rwlock_t rw;
+        struct {
+            atomic_flag flag;
+        } spin;
+        struct {
+            pthread_mutex_t m;
+            pthread_cond_t can_read;
+            pthread_cond_t can_write;
+            int readers;
+            int writer;
+        } rw;
     } u;
 } NodeLock;
 
