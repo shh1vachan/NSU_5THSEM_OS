@@ -4,6 +4,8 @@
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static int futex_wait(int *addr, int expected)
 {
@@ -32,8 +34,21 @@ void my_spin_lock(my_spinlock_t *l)
     }
 }
 
+int my_spin_trylock(my_spinlock_t *l)
+{
+    if (__sync_bool_compare_and_swap(&l->value, 0, 1)) {
+        return 0;
+    }
+    return 1;
+}
+
 void my_spin_unlock(my_spinlock_t *l)
 {
+    int v = __atomic_load_n(&l->value, __ATOMIC_RELAXED);
+    if (v == 0) {
+        fprintf(stderr, "my_spin_unlock: unlocking unlocked spinlock\n");
+        abort();
+    }
     __atomic_store_n(&l->value, 0, __ATOMIC_RELEASE);
 }
 
@@ -58,8 +73,22 @@ void my_mutex_lock(my_mutex_t *m)
     }
 }
 
+int my_mutex_trylock(my_mutex_t *m)
+{
+    if (__sync_bool_compare_and_swap(&m->value, 0, 1)) {
+        return 0;
+    }
+    return 1;
+}
+
 void my_mutex_unlock(my_mutex_t *m)
 {
+    int v = __atomic_load_n(&m->value, __ATOMIC_RELAXED);
+    if (v <= 0) {
+        fprintf(stderr, "my_mutex_unlock: unlocking unlocked mutex\n");
+        abort();
+    }
+
     int prev = __sync_fetch_and_sub(&m->value, 1);
 
     if (prev == 1) {
@@ -68,4 +97,41 @@ void my_mutex_unlock(my_mutex_t *m)
 
     __atomic_store_n(&m->value, 0, __ATOMIC_RELEASE);
     futex_wake(&m->value, 1);
+}
+
+void lock_init(lock_t *l, lock_kind_t kind)
+{
+    l->kind = kind;
+    if (kind == LOCK_KIND_SPIN) {
+        my_spin_init(&l->spin);
+    } else {
+        my_mutex_init(&l->mutex);
+    }
+}
+
+void lock_lock(lock_t *l)
+{
+    if (l->kind == LOCK_KIND_SPIN) {
+        my_spin_lock(&l->spin);
+    } else {
+        my_mutex_lock(&l->mutex);
+    }
+}
+
+int lock_trylock(lock_t *l)
+{
+    if (l->kind == LOCK_KIND_SPIN) {
+        return my_spin_trylock(&l->spin);
+    } else {
+        return my_mutex_trylock(&l->mutex);
+    }
+}
+
+void lock_unlock(lock_t *l)
+{
+    if (l->kind == LOCK_KIND_SPIN) {
+        my_spin_unlock(&l->spin);
+    } else {
+        my_mutex_unlock(&l->mutex);
+    }
 }

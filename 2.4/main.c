@@ -7,13 +7,10 @@
 #include "lock.h"
 
 static long long counter = 0;
-
-static my_spinlock_t g_spin;
-static my_mutex_t    g_mutex;
+static lock_t g_lock;
 
 struct thread_arg {
     long iterations;
-    int use_mutex;
 };
 
 static void *worker(void *argp)
@@ -21,15 +18,9 @@ static void *worker(void *argp)
     struct thread_arg *arg = (struct thread_arg *)argp;
 
     for (long i = 0; i < arg->iterations; ++i) {
-        if (arg->use_mutex) {
-            my_mutex_lock(&g_mutex);
-            counter++;
-            my_mutex_unlock(&g_mutex);
-        } else {
-            my_spin_lock(&g_spin);
-            counter++;
-            my_spin_unlock(&g_spin);
-        }
+        lock_lock(&g_lock);
+        counter++;
+        lock_unlock(&g_lock);
     }
 
     return NULL;
@@ -59,9 +50,9 @@ int main(int argc, char **argv)
     }
 
     if (use_mutex) {
-        my_mutex_init(&g_mutex);
+        lock_init(&g_lock, LOCK_KIND_MUTEX);
     } else {
-        my_spin_init(&g_spin);
+        lock_init(&g_lock, LOCK_KIND_SPIN);
     }
 
     pthread_t *threads = malloc(sizeof(pthread_t) * n_threads);
@@ -72,7 +63,6 @@ int main(int argc, char **argv)
 
     struct thread_arg arg;
     arg.iterations = iterations;
-    arg.use_mutex  = use_mutex;
 
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
