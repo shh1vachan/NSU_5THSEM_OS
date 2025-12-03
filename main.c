@@ -1,0 +1,92 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <time.h>
+
+#include "lock.h"
+
+static long long counter = 0;
+static lock_t g_lock;
+
+struct thread_arg {
+    long iterations;
+};
+
+static void *worker(void *argp)
+{
+    struct thread_arg *arg = (struct thread_arg *)argp;
+
+    for (long i = 0; i < arg->iterations; ++i) {
+        lock_lock(&g_lock);
+        counter++;
+        lock_unlock(&g_lock);
+    }
+
+    return NULL;
+}
+
+int main(int argc, char **argv)
+{
+    int  n_threads  = 4;
+    long iterations = 1000000;
+    int  use_mutex  = 0;
+
+    if (argc >= 2) {
+        n_threads = atoi(argv[1]);
+    }
+    if (argc >= 3) {
+        iterations = atol(argv[2]);
+    }
+    if (argc >= 4) {
+        if (strcmp(argv[3], "mutex") == 0) {
+            use_mutex = 1;
+        } else if (strcmp(argv[3], "spin") == 0) {
+            use_mutex = 0;
+        } else {
+            fprintf(stderr, "Usage: %s [threads] [iterations] [spin|mutex]\n", argv[0]);
+            return 1;
+        }
+    }
+
+    if (use_mutex) {
+        lock_init(&g_lock, LOCK_KIND_MUTEX);
+    } else {
+        lock_init(&g_lock, LOCK_KIND_SPIN);
+    }
+
+    pthread_t *threads = malloc(sizeof(pthread_t) * n_threads);
+    if (!threads) {
+        perror("malloc");
+        return 1;
+    }
+
+    struct thread_arg arg;
+    arg.iterations = iterations;
+
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+
+    for (int i = 0; i < n_threads; ++i) {
+        if (pthread_create(&threads[i], NULL, worker, &arg) != 0) {
+            perror("pthread_create");
+            return 1;
+        }
+    }
+
+    for (int i = 0; i < n_threads; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+
+    double elapsed = (t1.tv_sec - t0.tv_sec)
+                   + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+
+    printf("lock=%s threads=%d iter=%ld total_ops=%lld time=%.6f sec\n",
+           use_mutex ? "my_mutex" : "my_spin",
+           n_threads, iterations, counter, elapsed);
+
+    free(threads);
+    return 0;
+}
