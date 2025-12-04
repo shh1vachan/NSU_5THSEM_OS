@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sched.h>
 
 static int futex_wait(int *addr, int expected)
 {
@@ -15,6 +16,15 @@ static int futex_wait(int *addr, int expected)
 static int futex_wake(int *addr, int n)
 {
     return syscall(SYS_futex, addr, FUTEX_WAKE, n, NULL, NULL, 0);
+}
+
+static inline void cpu_relax(void)
+{
+#if defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#else
+    sched_yield();
+#endif
 }
 
 void my_spin_init(my_spinlock_t *l)
@@ -29,7 +39,11 @@ void my_spin_lock(my_spinlock_t *l)
             return;
         }
 
-        while (__atomic_load_n(&l->value, __ATOMIC_RELAXED) != 0) {
+        for (int i = 0; i < 100; ++i) {
+            if (__atomic_load_n(&l->value, __ATOMIC_RELAXED) == 0) {
+                break;
+            }
+            cpu_relax();
         }
     }
 }
@@ -62,6 +76,14 @@ void my_mutex_lock(my_mutex_t *m)
     for (;;) {
         if (__sync_bool_compare_and_swap(&m->value, 0, 1)) {
             return;
+        }
+
+        for (int i = 0; i < 100; ++i) {
+            int v = __atomic_load_n(&m->value, __ATOMIC_RELAXED);
+            if (v == 0) {
+                break;
+            }
+            cpu_relax();
         }
 
         int old = __sync_val_compare_and_swap(&m->value, 1, 2);
