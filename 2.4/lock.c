@@ -7,15 +7,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
+#include <errno.h>
 
 static int futex_wait(int *addr, int expected)
 {
-    return syscall(SYS_futex, addr, FUTEX_WAIT, expected, NULL, NULL, 0);
+    for (;;) {
+        int r = syscall(SYS_futex, addr, FUTEX_WAIT, expected, NULL, NULL, 0);
+        if (r == 0) {
+            return 0;
+        }
+        if (errno == EAGAIN) {
+            return 0;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        perror("futex_wait");
+        abort();
+    }
 }
 
 static int futex_wake(int *addr, int n)
 {
-    return syscall(SYS_futex, addr, FUTEX_WAKE, n, NULL, NULL, 0);
+    int r = syscall(SYS_futex, addr, FUTEX_WAKE, n, NULL, NULL, 0);
+    if (r < 0) {
+        perror("futex_wake");
+        abort();
+    }
+    return r;
 }
 
 static inline void cpu_relax(void)

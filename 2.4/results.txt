@@ -1,0 +1,16 @@
+my_spin:
+shh1vachan@fedora:~/Документы/OS/sync/2.4$ ./lab 4 2000000 spin
+lock=my_spin threads=4 iter=2000000 total_ops=8000000 time=1.082600 sec
+
+pthread_spin:
+shh1vachan@fedora:~/Документы/OS/sync/2.4$ ./lab 4 2000000 p_spin
+lock=pthread_spin threads=4 iter=2000000 total_ops=8000000 time=1.117342 sec
+
+
+my_mutex:
+shh1vachan@fedora:~/Документы/OS/sync/2.4$ ./lab 4 2000000 mutex
+lock=my_mutex threads=4 iter=2000000 total_ops=8000000 time=1.569616 sec
+
+pthread_mutex:
+shh1vachan@fedora:~/Документы/OS/sync/2.4$ ./lab 4 2000000 p_mutex
+lock=pthread_mutex threads=4 iter=2000000 total_ops=8000000 time=0.642033 sec
