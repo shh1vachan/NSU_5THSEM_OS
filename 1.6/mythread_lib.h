@@ -1,19 +1,18 @@
 #ifndef MYTHREAD_LIB_H
 #define MYTHREAD_LIB_H
 
-#include <pthread.h>
-#include <stdatomic.h>
+#include <sys/types.h>
+#include <stddef.h>
 
-#define MYTHREAD_SUCCESS 0
-#define MYTHREAD_ERROR   1
+#define MYTHREAD_OK  0
+#define MYTHREAD_ERR 1
 
-typedef struct {
-    pthread_t handle;
-    _Atomic int started;
-    _Atomic int finished;
-    _Atomic int joined;
-    _Atomic int detached;
-    void *retval;
+typedef struct mythread {
+    pid_t  tid;
+    void  *stack;
+    size_t stack_size;
+    int    finished;
+    void  *retval;
 } mythread_t;
 
 int mythread_create(mythread_t *thread,
@@ -21,6 +20,5 @@ int mythread_create(mythread_t *thread,
                     void *arg);
 
 int mythread_join(mythread_t *thread, void **retval);
-int mythread_detach(mythread_t *thread);
 
-#endif // MYTHREAD_LIB__H
+#endif

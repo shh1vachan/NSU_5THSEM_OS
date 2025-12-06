@@ -1,28 +1,32 @@
+#define _GNU_SOURCE
 #include "mythread_lib.h"
-#include <stdlib.h>
 
-struct mythread_start_wrapper {
+#include <sched.h>      
+#include <stdlib.h>    
+#include <sys/wait.h>   
+#include <signal.h>     
+
+struct mythread_start {
     mythread_t *thread;
-    void *(*user_routine)(void *);
-    void *user_arg;
+    void *(*start_routine)(void *);
+    void *arg;
 };
 
-static void *mythread_trampoline(void *arg)
+static int mythread_trampoline(void *arg)
 {
-    struct mythread_start_wrapper *w = arg;
-    mythread_t *t = w->thread;
-    void *(*fn)(void *) = w->user_routine;
-    void *user_arg = w->user_arg;
-    free(w);
+    struct mythread_start *ctx = arg;
+    mythread_t *t = ctx->thread;
+    void *(*fn)(void *) = ctx->start_routine;
+    void *fn_arg = ctx->arg;
 
-    atomic_store(&t->started, 1);
+    free(ctx);
 
-    void *ret = fn(user_arg);
+    void *ret = fn(fn_arg);
 
-    t->retval = ret;
-    atomic_store(&t->finished, 1);
+    t->retval  = ret;
+    t->finished = 1;
 
-    return ret;
+    return 0;
 }
 
 int mythread_create(mythread_t *thread,
@@ -30,76 +34,64 @@ int mythread_create(mythread_t *thread,
                     void *arg)
 {
     if (thread == NULL || start_routine == NULL) {
-        return MYTHREAD_ERROR;
+        return MYTHREAD_ERR;
     }
 
-    atomic_store(&thread->started, 0);
-    atomic_store(&thread->finished, 0);
-    atomic_store(&thread->joined, 0);
-    atomic_store(&thread->detached, 0);
+    size_t stack_size = 64 * 1024;
+    void *stack = malloc(stack_size);
+    if (!stack) {
+        return MYTHREAD_ERR;
+    }
+
+    struct mythread_start *ctx = malloc(sizeof(*ctx));
+    if (!ctx) {
+        free(stack);
+        return MYTHREAD_ERR;
+    }
+
+    ctx->thread = thread;
+    ctx->start_routine = start_routine;
+    ctx->arg = arg;
+
+    thread->stack = stack;
+    thread->stack_size = stack_size;
+    thread->finished = 0;
     thread->retval = NULL;
 
-    struct mythread_start_wrapper *w = malloc(sizeof(*w));
-    if (!w) {
-        return MYTHREAD_ERROR;
+    void *stack_top = (char *)stack + stack_size;
+
+    int flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | SIGCHLD;
+
+    pid_t tid = clone(mythread_trampoline, stack_top, flags, ctx);
+    if (tid == -1) {
+        free(ctx);
+        free(stack);
+        return MYTHREAD_ERR;
     }
 
-    w->thread = thread;
-    w->user_routine = start_routine;
-    w->user_arg = arg;
-
-    int rc = pthread_create(&thread->handle, NULL, mythread_trampoline, w);
-    if (rc != 0) {
-        free(w);
-        return MYTHREAD_ERROR;
-    }
-
-    return MYTHREAD_SUCCESS;
+    thread->tid = tid;
+    return MYTHREAD_OK;
 }
 
 int mythread_join(mythread_t *thread, void **retval)
 {
     if (thread == NULL) {
-        return MYTHREAD_ERROR;
+        return MYTHREAD_ERR;
     }
 
-    if (atomic_load(&thread->detached)) {
-        return MYTHREAD_ERROR;
+    int status = 0;
+    pid_t r = waitpid(thread->tid, &status, 0);
+    if (r == -1) {
+        return MYTHREAD_ERR;
     }
 
-    int expected = 0;
-    if (!atomic_compare_exchange_strong(&thread->joined, &expected, 1)) {
-        return MYTHREAD_ERROR;
-    }
-
-    void *ret = NULL;
-    int rc = pthread_join(thread->handle, &ret);
-    if (rc != 0) {
-        return MYTHREAD_ERROR;
-    }
-
-    if (retval) 
+    if (retval) {
         *retval = thread->retval;
-
-    return MYTHREAD_SUCCESS;
-}
-
-int mythread_detach(mythread_t *thread)
-{
-    if (thread == NULL) 
-        return MYTHREAD_ERROR;
-
-    if (atomic_load(&thread->joined)) 
-        return MYTHREAD_ERROR;
-
-    int expected = 0;
-    if (!atomic_compare_exchange_strong(&thread->detached, &expected, 1)) {
-        return MYTHREAD_ERROR;
     }
 
-    int rc = pthread_detach(thread->handle);
-    if (rc != 0) 
-        return MYTHREAD_ERROR;
+    free(thread->stack);
+    thread->stack = NULL;
+    thread->stack_size = 0;
 
-    return MYTHREAD_SUCCESS;
+    return MYTHREAD_OK;
 }
