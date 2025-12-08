@@ -102,7 +102,6 @@ void *swap_worker(void *arg) {
 
     while (atomic_load(&running)) {
         do_random_swap_once(&global_list, fn, ctr, &seed);
-        sched_yield();
     }
 
     return NULL;

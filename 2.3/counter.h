@@ -10,6 +10,11 @@ extern atomic_long inc_passes;
 extern atomic_long dec_passes;
 extern atomic_long eq_passes;
 
+// new counters
+extern atomic_long inc_pairs;
+extern atomic_long dec_pairs;
+extern atomic_long eq_pairs;
+
 extern atomic_int running;
 
 void *thread_increasing(void *arg);

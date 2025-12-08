@@ -60,6 +60,11 @@ int main(int argc, char **argv) {
            (long)atomic_load(&dec_passes),
            (long)atomic_load(&eq_passes));
 
+    printf("pairs:  inc=%ld dec=%ld eq=%ld\n",
+           (long)atomic_load(&inc_pairs),
+           (long)atomic_load(&dec_pairs),
+           (long)atomic_load(&eq_pairs));
+
     printf("swaps:  inc=%ld dec=%ld eq=%ld\n",
            (long)atomic_load(&swap_counts[0]),
            (long)atomic_load(&swap_counts[1]),

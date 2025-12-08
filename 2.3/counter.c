@@ -7,6 +7,11 @@ atomic_long inc_passes = 0;
 atomic_long dec_passes = 0;
 atomic_long eq_passes  = 0;
 
+// global counters
+atomic_long inc_pairs = 0;
+atomic_long dec_pairs = 0;
+atomic_long eq_pairs  = 0;
+
 atomic_int running = 1;
 
 typedef enum {
@@ -60,8 +65,8 @@ void *thread_increasing(void *arg) {
     (void)arg;
     while (atomic_load(&running)) {
         long x = count_pairs_once(CMP_INC);
-        (void)x;
         atomic_fetch_add(&inc_passes, 1);
+        atomic_fetch_add(&inc_pairs, x);
     }
     return NULL;
 }
@@ -70,8 +75,8 @@ void *thread_decreasing(void *arg) {
     (void)arg;
     while (atomic_load(&running)) {
         long x = count_pairs_once(CMP_DEC);
-        (void)x;
         atomic_fetch_add(&dec_passes, 1);
+        atomic_fetch_add(&dec_pairs, x);
     }
     return NULL;
 }
@@ -80,8 +85,8 @@ void *thread_equal(void *arg) {
     (void)arg;
     while (atomic_load(&running)) {
         long x = count_pairs_once(CMP_EQ);
-        (void)x;
         atomic_fetch_add(&eq_passes, 1);
+        atomic_fetch_add(&eq_pairs, x);
     }
     return NULL;
 }

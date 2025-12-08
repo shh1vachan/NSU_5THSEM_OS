@@ -1,0 +1,52 @@
+shh1vachan@fedora:~/Документы/OS/sync/2.3$ make run-mutex run-spin run-rw
+./lab23 1000000 mutex
+list size = 1000000, lock mode = mutex
+passes: inc=39 dec=38 eq=38
+pairs:  inc=19313358 dec=18797000 eq=384818
+swaps:  inc=64 dec=65 eq=125
+./lab23 1000000 spin
+list size = 1000000, lock mode = spin
+passes: inc=49 dec=48 eq=48
+pairs:  inc=24264229 dec=23735094 eq=495827
+swaps:  inc=77 dec=85 eq=194
+./lab23 1000000 rw
+list size = 1000000, lock mode = rwlock
+passes: inc=32 dec=31 eq=35
+pairs:  inc=15846196 dec=15337203 eq=352016
+swaps:  inc=46 dec=38 eq=92
+
+
+shh1vachan@fedora:~/Документы/OS/sync/2.3$ make run-mutex run-spin run-rw
+./lab23 1000 mutex
+list size = 1000, lock mode = mutex
+passes: inc=32151 dec=32067 eq=32080
+pairs:  inc=15871285 dec=15825755 eq=379310
+swaps:  inc=41227 dec=41679 eq=84508
+./lab23 1000 spin
+list size = 1000, lock mode = spin
+passes: inc=73937 dec=73956 eq=73923
+pairs:  inc=36772562 dec=36331212 eq=767845
+swaps:  inc=100576 dec=94876 eq=202391
+./lab23 1000 rw
+list size = 1000, lock mode = rwlock
+passes: inc=48660 dec=49432 eq=49411
+pairs:  inc=23829288 dec=24625100 eq=551080
+swaps:  inc=52689 dec=57330 eq=103991
+
+
+shh1vachan@fedora:~/Документы/OS/sync/2.3$ make run-mutex run-spin run-rw
+./lab23 10 mutex
+list size = 10, lock mode = mutex
+passes: inc=620134 dec=612095 eq=568428
+pairs:  inc=2900149 dec=2632807 eq=0
+swaps:  inc=161447 dec=158403 eq=1237639
+./lab23 10 spin
+list size = 10, lock mode = spin
+passes: inc=966939 dec=974173 eq=998703
+pairs:  inc=4295874 dec=4470987 eq=0
+swaps:  inc=643449 dec=659617 eq=1242688
+./lab23 10 rw
+list size = 10, lock mode = rwlock
+passes: inc=623513 dec=596018 eq=590510
+pairs:  inc=2777244 dec=2695901 eq=0
+swaps:  inc=230136 dec=234143 eq=519950
