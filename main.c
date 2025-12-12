@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 
 #include "proxy.h"
+#include "cache.h"
 
 static int listen_fd = -1;
 
@@ -57,19 +58,13 @@ static int create_listen_socket(int port) {
     return fd;
 }
 
-int main(int argc, char **argv) {
-    int port = 8080;
-
-    if (argc >= 2) {
-        port = atoi(argv[1]);
-        if (port <= 0 || port > 65535) {
-            fprintf(stderr, "invalid port: %s\n", argv[1]);
-            return 1;
-        }
-    }
+int main(void) {
+    int port = 80;
 
     signal(SIGINT, handle_sigint);
     signal(SIGTERM, handle_sigint);
+
+    cache_init();
 
     listen_fd = create_listen_socket(port);
     if (listen_fd < 0) {

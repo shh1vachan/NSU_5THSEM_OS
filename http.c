@@ -3,6 +3,8 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 int http_parse_request_line(char *buf, size_t buf_len,
                             char *method, size_t method_sz,
@@ -83,5 +85,112 @@ int http_parse_url(const char *url,
         snprintf(port, port_sz, "80");
     }
 
+    return 0;
+}
+
+static int ieq_prefix(const char *line, const char *prefix) {
+    size_t n = strlen(prefix);
+    for (size_t i = 0; i < n; ++i) {
+        if (tolower((unsigned char)line[i]) != tolower((unsigned char)prefix[i]))
+            return 0;
+    }
+    return 1;
+}
+
+int http_build_origin_request(const char *orig_req, size_t orig_len,
+                              const char *method,
+                              const char *path,
+                              const char *host,
+                              char **out_req, size_t *out_len) {
+    const char *p = orig_req;
+    const char *end = orig_req + orig_len;
+
+    const char *line_end = strstr(p, "\r\n");
+    if (!line_end) {
+        fprintf(stderr, "[ERR] no CRLF in request\n");
+        return -1;
+    }
+    const char *headers_start = line_end + 2;
+
+    const char *headers_end = NULL;
+    for (const char *q = headers_start; q + 3 <= end; ++q) {
+        if (q[0] == '\r' && q[1] == '\n' && q[2] == '\r' && q[3] == '\n') {
+            headers_end = q + 4;
+            break;
+        }
+    }
+    if (!headers_end) {
+        fprintf(stderr, "[ERR] no header end in request\n");
+        return -1;
+    }
+
+    size_t out_cap = orig_len + 256;
+    char *out = malloc(out_cap);
+    if (!out)
+        return -1;
+    size_t out_pos = 0;
+
+    int n = snprintf(out + out_pos, out_cap - out_pos,
+                     "%s %s HTTP/1.0\r\n", method, path);
+    if (n <= 0 || (size_t)n >= out_cap - out_pos) {
+        free(out);
+        return -1;
+    }
+    out_pos += (size_t)n;
+
+    const char *h = headers_start;
+    while (h < headers_end - 2) {
+        const char *le = strstr(h, "\r\n");
+        if (!le || le > headers_end - 2)
+            break;
+        size_t line_len = (size_t)(le - h);
+        if (line_len == 0) {
+            h = le + 2;
+            continue;
+        }
+
+        int skip = 0;
+        if (line_len >= 5 && ieq_prefix(h, "Host:"))
+            skip = 1;
+        else if (line_len >= 11 && ieq_prefix(h, "Connection:"))
+            skip = 1;
+        else if (line_len >= 17 && ieq_prefix(h, "Proxy-Connection:"))
+            skip = 1;
+
+        if (!skip) {
+            if (out_pos + line_len + 2 > out_cap) {
+                size_t new_cap = out_cap * 2;
+                while (new_cap < out_pos + line_len + 2)
+                    new_cap *= 2;
+                char *tmp = realloc(out, new_cap);
+                if (!tmp) {
+                    free(out);
+                    return -1;
+                }
+                out = tmp;
+                out_cap = new_cap;
+            }
+            memcpy(out + out_pos, h, line_len);
+            out_pos += line_len;
+            out[out_pos++] = '\r';
+            out[out_pos++] = '\n';
+        }
+
+        h = le + 2;
+    }
+
+    n = snprintf(out + out_pos, out_cap - out_pos,
+                 "Host: %s\r\n"
+                 "Connection: close\r\n"
+                 "\r\n",
+                 host);
+    if (n <= 0 || (size_t)n >= out_cap - out_pos) {
+        free(out);
+        return -1;
+    }
+    out_pos += (size_t)n;
+
+    *out_req = out;
+    *out_len = out_pos;
     return 0;
 }
