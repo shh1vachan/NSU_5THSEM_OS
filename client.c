@@ -40,44 +40,60 @@ static void send_simple_error(int client_fd, const char *status, const char *msg
         send_all(client_fd, resp, (size_t)n);
 }
 
+static void cache_put_gateway_error(cache_entry_t *e, const char *status, const char *msg) {
+    char resp[512];
+    int n = snprintf(resp, sizeof(resp),
+                     "HTTP/1.0 %s\r\n"
+                     "Connection: close\r\n"
+                     "Content-Type: text/plain\r\n"
+                     "\r\n"
+                     "%s\n",
+                     status, msg);
+    if (n > 0) {
+        cache_entry_add_data(e, resp, (size_t)n);
+        cache_entry_mark_ready(e);
+    } else {
+        cache_entry_mark_error(e);
+    }
+}
+
 static void *loader_thread(void *arg) {
     cache_entry_t *e = (cache_entry_t *)arg;
 
     int origin_fd = connect_to_origin(e->origin_host, e->origin_port);
     if (origin_fd < 0) {
-        const char *resp =
-            "HTTP/1.0 502 Bad Gateway\r\n"
-            "Connection: close\r\n"
-            "Content-Type: text/plain\r\n"
-            "\r\n"
-            "Failed to connect to origin.\n";
-        cache_entry_add_data(e, resp, strlen(resp));
-        cache_entry_mark_ready(e);
+        cache_put_gateway_error(e, "502 Bad Gateway", "Failed to connect to origin");
         return NULL;
     }
 
     if (send_all(origin_fd, e->req, e->req_len) < 0) {
-        perror("[ERR] send_all to origin");
-        cache_entry_mark_error(e);
         close(origin_fd);
+        cache_put_gateway_error(e, "502 Bad Gateway", "Failed to send request to origin");
         return NULL;
     }
 
     char buf[IO_BUF_SIZE];
     ssize_t n;
+    int got_any = 0;
 
     while ((n = recv(origin_fd, buf, sizeof(buf), 0)) > 0) {
+        got_any = 1;
         cache_entry_add_data(e, buf, (size_t)n);
     }
 
+    close(origin_fd);
+
     if (n < 0) {
-        perror("[ERR] recv from origin");
-        cache_entry_mark_error(e);
-    } else {
-        cache_entry_mark_ready(e);
+        cache_put_gateway_error(e, "504 Gateway Timeout", "Failed while reading from origin");
+        return NULL;
     }
 
-    close(origin_fd);
+    if (!got_any) {
+        cache_put_gateway_error(e, "502 Bad Gateway", "Origin closed connection without response");
+        return NULL;
+    }
+
+    cache_entry_mark_ready(e);
     return NULL;
 }
 
