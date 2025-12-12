@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <stddef.h>
+#include <sys/types.h>
 
 typedef enum {
     CACHE_LOADING = 0,
