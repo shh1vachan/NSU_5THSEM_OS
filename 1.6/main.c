@@ -1,28 +1,30 @@
 #include <stdio.h>
 #include "mythread_lib.h"
 
-static void *thread_func(void *arg)
+static void *thread_function(void *arg)
 {
     const char *msg = (const char *)arg;
     printf("mythread started, message: %s\n", msg);
-    return "done";
+    return NULL;
 }
 
 int main(void)
 {
-    mythread_t t;
-    void *retval = NULL;
+    mythread_t t1;
+    mythread_t t2;
 
-    if (mythread_create(&t, thread_func, "hello from mythread") != MYTHREAD_OK) {
-        fprintf(stderr, "mythread_create failed\n");
+    if (mythread_create(&t1, thread_function, "join-thread") != MYTHREAD_OK) {
+        fprintf(stderr, "mythread_create t1 failed\n");
         return 1;
     }
 
-    if (mythread_join(&t, &retval) != MYTHREAD_OK) {
-        fprintf(stderr, "mythread_join failed\n");
+    if (mythread_create(&t2, thread_function, "detached-thread") != MYTHREAD_OK) {
+        fprintf(stderr, "mythread_create t2 failed\n");
         return 1;
     }
 
-    printf("mythread finished, retval = %s\n", (char *)retval);
+    mythread_detach(&t2);
+    mythread_join(&t1, NULL);
+
     return 0;
 }
