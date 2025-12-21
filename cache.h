@@ -23,15 +23,19 @@ typedef struct cache_entry {
     size_t capacity;
 
     cache_state_t state;
+
     int refcount;
 
     pthread_mutex_t mtx;
     pthread_cond_t cond;
 
-    struct cache_entry *next;
+    struct cache_entry *hnext;
+    struct cache_entry *lru_prev;
+    struct cache_entry *lru_next;
 } cache_entry_t;
 
 void cache_init(void);
+void cache_set_max_bytes(size_t max_bytes);
 
 cache_entry_t *cache_get_or_create(const char *key,
                                    const char *origin_host,
@@ -47,6 +51,7 @@ void cache_entry_mark_error(cache_entry_t *e);
 ssize_t cache_entry_read(cache_entry_t *e, size_t *offset,
                          void *buf, size_t buf_sz, int *finished);
 
+void cache_entry_acquire(cache_entry_t *e);
 void cache_entry_release(cache_entry_t *e);
 
 #endif
